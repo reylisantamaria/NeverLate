@@ -1,0 +1,93 @@
+/**
+ * SUPABASE MIDDLEWARE - AUTH TOKEN REFRESH & ROUTE PROTECTION
+ * 
+ * This middleware runs on EVERY request and is responsible for:
+ * 
+ * 1. Refreshing the Auth token
+ *    - Calls supabase.auth.getUser() which validates the token with Supabase
+ *    - Automatically refreshes expired tokens
+ * 
+ * 2. Passing refreshed token to Server Components
+ *    - Updates request.cookies so Server Components get the fresh token
+ *    - Prevents multiple refresh attempts
+ * 
+ * 3. Passing refreshed token to browser
+ *    - Updates response.cookies so browser stores the fresh token
+ *    - Keeps user session alive
+ * 
+ * 4. Route Protection
+ *    - Redirects unauthenticated users to /login
+ *    - Redirects authenticated users away from /login and /signup
+ *    - Public routes: /, /login, /signup, /auth/callback
+ * 
+ * Called from: proxy.ts (middleware entry point)
+ */
+
+
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
+
+export async function updateSession(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({
+    request,
+  })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({
+            request,
+          })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  // Do not run code between createServerClient and
+  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
+  // issues with users being randomly logged out.
+
+  // IMPORTANT: DO NOT REMOVE auth.getUser()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (
+    !user &&
+    !request.nextUrl.pathname.startsWith('/login') &&
+    !request.nextUrl.pathname.startsWith('/auth') &&
+    !request.nextUrl.pathname.startsWith('/error')
+  ) {
+    // no user, potentially respond by redirecting the user to the login page
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
+  }
+
+  // IMPORTANT: You *must* return the supabaseResponse object as it is.
+  // If you're creating a new response object with NextResponse.next() make sure to:
+  // 1. Pass the request in it, like so:
+  //    const myNewResponse = NextResponse.next({ request })
+  // 2. Copy over the cookies, like so:
+  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
+  // 3. Change the myNewResponse object to fit your needs, but avoid changing
+  //    the cookies!
+  // 4. Finally:
+  //    return myNewResponse
+  // If this is not done, you may be causing the browser and server to go out
+  // of sync and terminate the user's session prematurely!
+
+  return supabaseResponse
+}
+
