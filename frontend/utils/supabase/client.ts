@@ -5,7 +5,7 @@
  * that run in the browser.
  * 
  * Common use cases:
- * - User login/signup forms
+ * - User sign in/sign up forms
  * - Client-side auth state management
  * - User-initiated actions
  * 

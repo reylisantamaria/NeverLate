@@ -16,9 +16,8 @@
  *    - Keeps user session alive
  * 
  * 4. Route Protection
- *    - Redirects unauthenticated users to /login
- *    - Redirects authenticated users away from /login and /signup
- *    - Public routes: /, /login, /signup, /auth/callback
+ *    - Redirects unauthenticated users to /auth
+ *    - Public routes: /, /auth, /auth/callback
  * 
  * Called from: proxy.ts (middleware entry point)
  */
@@ -63,15 +62,16 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // If the user is not authenticated and the path is not a public route, redirect to sign in
   if (
     !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/auth') &&
-    !request.nextUrl.pathname.startsWith('/error')
+    !request.nextUrl.pathname.startsWith('/error') &&
+    request.nextUrl.pathname !== '/'
   ) {
-    // no user, potentially respond by redirecting the user to the login page
+    // no user, potentially respond by redirecting the user to sign in
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    url.pathname = '/auth/signin'
     return NextResponse.redirect(url)
   }
 

@@ -35,5 +35,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# docs
-/neverlate/docs
+# documentation
+/docs
+
+# python (backend)
+/backend/__pycache__
+/backend/venv
+/backend/env
+/backend/env.local
